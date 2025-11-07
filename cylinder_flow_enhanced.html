@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cylinder with Enhanced Flowing Arrows</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        button {
+            background: #4CAF50;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="info">
+            <h3>3D Cylinder with Enhanced Flowing Arrows</h3>
+            <p>Arrows flow with real inward/outward turning at ends, creating a soft, natural flow pattern.</p>
+        </div>
+        
+        <div id="controls">
+            <button onclick="toggleAnimation()">Toggle Animation</button>
+            <button onclick="changeSpeed(0.5)">Slower</button>
+            <button onclick="changeSpeed(2)">Faster</button>
+            <button onclick="resetView()">Reset View</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let cylinder, arrows = [];
+        let animationId;
+        let animationSpeed = 1;
+        let isAnimating = true;
+
+        // Cylinder parameters
+        const cylinderRadius = 2;
+        const cylinderHeight = 6;
+        const segments = 32;
+        const arrowCount = 400;
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(8, 5, 8);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Create the cylinder structure
+            createCylinder();
+            createFlowingArrows();
+
+            // Start animation
+            animate();
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function createCylinder() {
+            // No visible cylinder - the arrows will create the imaginary cylinder structure
+            // This function is kept for potential future reference but no cylinder is added to the scene
+        }
+
+        function createFlowingArrows() {
+            // Create arrows that continuously loop from outer to inner surface
+            for (let i = 0; i < arrowCount; i++) {
+                const arrowGroup = new THREE.Group();
+                
+                // Create arrow head
+                const arrowHeadGeometry = new THREE.ConeGeometry(0.08, 0.4, 8);
+                const arrowHeadMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x0088ff,
+                    emissive: 0x002244,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                const arrowHead = new THREE.Mesh(arrowHeadGeometry, arrowHeadMaterial);
+                arrowHead.position.set(0, 0.2, 0);
+                arrowGroup.add(arrowHead);
+                
+                // Create arrow line/tail
+                const lineGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8);
+                const lineMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x0088ff,
+                    emissive: 0x002244,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const arrowLine = new THREE.Mesh(lineGeometry, lineMaterial);
+                arrowLine.position.set(0, -0.1, 0);
+                arrowGroup.add(arrowLine);
+                
+                // Position arrows around cylinder circumference
+                const angle = (i / arrowCount) * Math.PI * 2;
+                
+                arrowGroup.position.x = Math.cos(angle) * cylinderRadius;
+                arrowGroup.position.y = 0;
+                arrowGroup.position.z = Math.sin(angle) * cylinderRadius;
+                
+                // Orient arrow along cylinder length
+                arrowGroup.rotation.x = 0;
+                arrowGroup.rotation.y = 0;
+                arrowGroup.rotation.z = 0;
+                
+                // Store properties for animation
+                arrowGroup.userData = {
+                    originalAngle: angle,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.02 + Math.random() * 0.01,
+                    flowDirection: 1,
+                    currentPhase: 'outer',
+                    turnProgress: 0,
+                    innerRadius: cylinderRadius * 0.6,
+                    position: 0
+                };
+                
+                arrows.push(arrowGroup);
+                scene.add(arrowGroup);
+            }
+        }
+
+        function animate() {
+            if (isAnimating) {
+                animationId = requestAnimationFrame(animate);
+                
+                // Update arrows
+                arrows.forEach((arrowGroup, index) => {
+                    const userData = arrowGroup.userData;
+                    userData.phase += userData.speed * animationSpeed;
+                    
+                    // Enhanced flow with real inward/outward turning
+                    const time = userData.phase;
+                    const loopPosition = (time * userData.flowDirection * 0.3) % 4; // 0 to 4 for complete loop
+                    
+                    let currentPhase = userData.currentPhase;
+                    let currentRadius = cylinderRadius;
+                    let newHeight = 0;
+                    let rotationX = 0;
+                    let currentColor;
+                    
+                    if (loopPosition < 1) {
+                        // Outer surface - flowing down
+                        currentPhase = 'outer';
+                        newHeight = cylinderHeight * 0.5 - (loopPosition * cylinderHeight);
+                        currentRadius = cylinderRadius;
+                        rotationX = 0;
+                        currentColor = new THREE.Color().setHSL(0.6, 1, 0.8); // Blue
+                    } else if (loopPosition < 1.5) {
+                        // Clockwise inward turn at bottom
+                        currentPhase = 'turning_in';
+                        const turnProgress = (loopPosition - 1) * 2; // 0 to 1
+                        newHeight = -cylinderHeight * 0.5;
+                        currentRadius = cylinderRadius - (cylinderRadius - userData.innerRadius) * turnProgress;
+                        rotationX = turnProgress * Math.PI / 2; // Clockwise turn (0 to 90 degrees)
+                        // Keep blue color during inward turn
+                        currentColor = new THREE.Color().setHSL(0.6, 1, 0.8); // Blue
+                    } else if (loopPosition < 2.5) {
+                        // Inner surface - flowing up
+                        currentPhase = 'inner';
+                        newHeight = -cylinderHeight * 0.5 + ((loopPosition - 1.5) * cylinderHeight);
+                        currentRadius = userData.innerRadius;
+                        rotationX = Math.PI; // 180 degrees - pointing up
+                        currentColor = new THREE.Color().setHSL(0.8, 1, 0.8); // Magenta
+                    } else if (loopPosition < 3) {
+                        // Anti-clockwise outward turn at top
+                        currentPhase = 'turning_out';
+                        const turnProgress = (loopPosition - 2.5) * 2; // 0 to 1
+                        newHeight = cylinderHeight * 0.5;
+                        currentRadius = userData.innerRadius + (cylinderRadius - userData.innerRadius) * turnProgress;
+                        rotationX = Math.PI - (turnProgress * Math.PI / 2); // Anti-clockwise turn (180 to 90 degrees)
+                        // Keep magenta color during outward turn
+                        currentColor = new THREE.Color().setHSL(0.8, 1, 0.8); // Magenta
+                    } else {
+                        // Outer surface - flowing up (completing the loop)
+                        currentPhase = 'outer';
+                        newHeight = cylinderHeight * 0.5 - ((loopPosition - 3) * cylinderHeight);
+                        currentRadius = cylinderRadius;
+                        rotationX = 0;
+                        currentColor = new THREE.Color().setHSL(0.6, 1, 0.8); // Blue
+                    }
+                    
+                    // Update position
+                    arrowGroup.position.x = Math.cos(userData.originalAngle) * currentRadius;
+                    arrowGroup.position.z = Math.sin(userData.originalAngle) * currentRadius;
+                    arrowGroup.position.y = newHeight;
+                    
+                    // Update rotation based on movement direction
+                    if (currentPhase === 'outer') {
+                        // Moving down on outer surface - arrow points down
+                        arrowGroup.rotation.x = Math.PI;
+                        arrowGroup.rotation.y = 0;
+                        arrowGroup.rotation.z = 0;
+                    } else if (currentPhase === 'turning_in') {
+                        // Turning inward - arrow points inward
+                        arrowGroup.rotation.x = rotationX;
+                        arrowGroup.rotation.y = 0;
+                        arrowGroup.rotation.z = 0;
+                    } else if (currentPhase === 'inner') {
+                        // Moving up on inner surface - arrow points up
+                        arrowGroup.rotation.x = 0;
+                        arrowGroup.rotation.y = 0;
+                        arrowGroup.rotation.z = 0;
+                    } else if (currentPhase === 'turning_out') {
+                        // Turning outward - arrow points outward
+                        arrowGroup.rotation.x = rotationX;
+                        arrowGroup.rotation.y = 0;
+                        arrowGroup.rotation.z = 0;
+                    }
+                    
+                    // Apply color
+                    arrowGroup.children.forEach(child => {
+                        if (child.material) {
+                            child.material.color.copy(currentColor);
+                        }
+                    });
+                });
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function toggleAnimation() {
+            isAnimating = !isAnimating;
+            if (isAnimating) {
+                animate();
+            } else {
+                cancelAnimationFrame(animationId);
+            }
+        }
+
+        function changeSpeed(factor) {
+            animationSpeed *= factor;
+        }
+
+        function resetView() {
+            camera.position.set(8, 5, 8);
+            controls.reset();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Initialize the scene
+        init();
+    </script>
+</body>
+</html>
